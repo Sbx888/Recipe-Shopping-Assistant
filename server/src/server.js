@@ -5,22 +5,18 @@ import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
+// Routes
+import recipeRoutes from './routes/recipes.js';
+import pantryRoutes from './routes/pantry.js';
+import userRoutes from './routes/users.js';
+import ingredientRoutes from './routes/ingredients.js';
+
 // Get directory name for ES module
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Load environment variables from the server root directory
+// Load environment variables
 dotenv.config({ path: join(__dirname, '..', '.env') });
-
-// Debug: Check OpenAI configuration
-console.log('OpenAI Key Format:', process.env.OPENAI_API_KEY ? `sk-${process.env.OPENAI_API_KEY.split('-')[1].substring(0, 3)}...` : 'Not set');
-console.log('OpenAI Org ID:', process.env.OPENAI_ORG_ID ? 'Set' : 'Not set');
-
-// Import routes
-import userRoutes from './routes/users.js';
-import recipeRoutes from './routes/recipes.js';
-import pantryRoutes from './routes/pantry.js';
-import ingredientRoutes from './routes/ingredients.js';
 
 const app = express();
 const PORT = process.env.PORT || 3005;
@@ -40,18 +36,14 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
-app.use('/api/users', userRoutes);
 app.use('/api/recipes', recipeRoutes);
 app.use('/api/pantry', pantryRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/ingredients', ingredientRoutes);
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({
-    error: 'Internal Server Error',
-    message: process.env.NODE_ENV === 'development' ? err.message : undefined
-  });
+// Basic test route
+app.get('/api/test', (req, res) => {
+  res.json({ message: 'Server is working!' });
 });
 
 // Start server
