@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/components/ingredientslist.tsx","./src/components/postcodeinput.tsx","./src/components/recipeinput.tsx","./src/components/shoppinglist.tsx","./src/services/ingredienttracker.ts","./src/services/recipeparser.ts","./src/services/supermarketfinder.ts"],"errors":true,"version":"5.8.3"}
