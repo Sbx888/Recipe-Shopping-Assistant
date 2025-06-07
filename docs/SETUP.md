@@ -43,6 +43,10 @@ Recipe-Shopping-Assistant/
 │   └── package.json    # Backend dependencies
 ├── package.json        # Root project configuration
 └── docs/              # Project documentation
+    ├── SETUP.md       # This file
+    ├── DEVELOPMENT.md # Development guide
+    ├── CHANGELOG.md   # Version history
+    └── MAINTENANCE.md # Backup & organization procedures
 ```
 
 ## Known Issues
@@ -73,4 +77,17 @@ If the server fails to start:
 - Start frontend: `npm run client`
 - Start backend: `npm run dev`
 - Start backend (production): `npm start`
-- Push changes: `git add . && git commit -m "your message" && git push` 
+- Push changes: `git add . && git commit -m "your message" && git push`
+
+## Documentation
+- `SETUP.md` (this file): Initial setup and current status
+- `DEVELOPMENT.md`: Development guidelines and practices
+- `CHANGELOG.md`: Version history and changes
+- `MAINTENANCE.md`: Backup, cleanup, and organization procedures
+
+Before shutting down or periodically:
+1. Check `MAINTENANCE.md` for backup procedures
+2. Update documentation if needed
+3. Push all changes to GitHub
+4. Backup database if changed
+5. Note any pending tasks in `CHANGELOG.md` 
