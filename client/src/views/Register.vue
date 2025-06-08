@@ -7,9 +7,15 @@
       <form class="mt-8 space-y-6" @submit.prevent="handleRegister">
         <div class="rounded-md shadow-sm -space-y-px">
           <div>
+            <label for="username" class="sr-only">Username</label>
+            <input v-model="username" id="username" name="username" type="text" required
+              class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+              placeholder="Username">
+          </div>
+          <div>
             <label for="name" class="sr-only">Full name</label>
             <input v-model="name" id="name" name="name" type="text" required
-              class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+              class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
               placeholder="Full name">
           </div>
           <div>
@@ -24,11 +30,24 @@
               class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
               placeholder="Password">
           </div>
+          
           <div>
-            <label for="postcode" class="sr-only">Postcode</label>
+            <label for="country" class="sr-only">Country</label>
+            <select v-model="country" id="country" name="country" required
+              class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm">
+              <option value="">Select your country</option>
+              <option value="AU">Australia</option>
+              <option value="NZ">New Zealand</option>
+              <option value="UK">United Kingdom</option>
+              <option value="US">United States</option>
+            </select>
+          </div>
+          
+          <div>
+            <label for="postcode" class="sr-only">{{ postcodeLabel }}</label>
             <input v-model="postcode" id="postcode" name="postcode" type="text" required
               class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-              placeholder="Postcode">
+              :placeholder="postcodeLabel">
           </div>
         </div>
 
@@ -36,22 +55,52 @@
           <label class="block text-sm font-medium text-gray-700">Preferred Supermarket</label>
           <select v-model="preferredSupermarket"
             class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-            <option value="tesco">Tesco</option>
-            <option value="asda">Asda</option>
-            <option value="sainsburys">Sainsbury's</option>
-            <option value="morrisons">Morrisons</option>
-            <option value="waitrose">Waitrose</option>
-            <option value="aldi">Aldi</option>
-            <option value="lidl">Lidl</option>
+            <option v-for="supermarket in supermarketOptions" :key="supermarket.value" :value="supermarket.value">
+              {{ supermarket.label }}
+            </option>
           </select>
         </div>
 
-        <div class="flex items-center">
-          <input v-model="useMetric" id="useMetric" name="useMetric" type="checkbox"
-            class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
-          <label for="useMetric" class="ml-2 block text-sm text-gray-900">
-            Use metric measurements
-          </label>
+        <div class="flex flex-col space-y-4">
+          <div class="flex items-center justify-between">
+            <span class="flex-grow flex flex-col">
+              <span class="text-sm font-medium text-gray-900">Measurement System</span>
+              <span class="text-sm text-gray-500">Choose your preferred measurement system</span>
+            </span>
+            <button 
+              type="button"
+              @click="useMetric = !useMetric"
+              class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              :class="useMetric ? 'bg-blue-600' : 'bg-gray-200'"
+              role="switch"
+              :aria-checked="useMetric"
+            >
+              <span 
+                class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200"
+                :class="useMetric ? 'translate-x-5' : 'translate-x-0'"
+              />
+            </button>
+          </div>
+          <div class="text-sm text-gray-500">
+            <p class="font-medium mb-1">Currently using: {{ useMetric ? 'Metric' : 'Imperial' }}</p>
+            <p class="mb-1">Common conversions:</p>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <p class="font-medium">Metric</p>
+                <ul class="list-disc list-inside">
+                  <li>250 ml</li>
+                  <li>500 g</li>
+                </ul>
+              </div>
+              <div>
+                <p class="font-medium">Imperial</p>
+                <ul class="list-disc list-inside">
+                  <li>8.4 fl oz</li>
+                  <li>1.1 lb</li>
+                </ul>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div>
@@ -66,37 +115,119 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import axios from 'axios'
+import api from '../config/api'
 
 const router = useRouter()
+const username = ref('')
 const name = ref('')
 const email = ref('')
 const password = ref('')
+const country = ref('')
 const postcode = ref('')
-const preferredSupermarket = ref('tesco')
+const preferredSupermarket = ref('')
 const useMetric = ref(true)
+
+interface SupermarketOption {
+  value: string
+  label: string
+}
+
+const supermarketsByCountry: Record<string, SupermarketOption[]> = {
+  UK: [
+    { value: 'tesco', label: 'Tesco' },
+    { value: 'asda', label: 'Asda' },
+    { value: 'sainsburys', label: "Sainsbury's" },
+    { value: 'morrisons', label: 'Morrisons' },
+    { value: 'waitrose', label: 'Waitrose' },
+    { value: 'aldi', label: 'Aldi' },
+    { value: 'lidl', label: 'Lidl' }
+  ],
+  AU: [
+    { value: 'woolworths', label: 'Woolworths' },
+    { value: 'coles', label: 'Coles' },
+    { value: 'aldi', label: 'Aldi' },
+    { value: 'iga', label: 'IGA' },
+    { value: 'foodland', label: 'Foodland' },
+    { value: 'harris_farm', label: 'Harris Farm' },
+    { value: 'costco', label: 'Costco' }
+  ],
+  US: [
+    { value: 'walmart', label: 'Walmart' },
+    { value: 'kroger', label: 'Kroger' },
+    { value: 'costco', label: 'Costco' },
+    { value: 'target', label: 'Target' },
+    { value: 'wholeFoods', label: 'Whole Foods' },
+    { value: 'traderjoes', label: "Trader Joe's" },
+    { value: 'safeway', label: 'Safeway' }
+  ],
+  NZ: [
+    { value: 'countdown', label: 'Countdown' },
+    { value: 'newworld', label: 'New World' },
+    { value: 'paknsave', label: "PAK'nSAVE" },
+    { value: 'foursquare', label: 'Four Square' },
+    { value: 'freshchoice', label: 'FreshChoice' },
+    { value: 'supervalue', label: 'SuperValue' }
+  ]
+}
+
+const supermarketOptions = computed(() => {
+  return country.value ? supermarketsByCountry[country.value] : []
+})
+
+const postcodeLabel = computed(() => {
+  switch (country.value) {
+    case 'US':
+      return 'ZIP Code'
+    case 'AU':
+    case 'NZ':
+      return 'Postcode'
+    case 'UK':
+      return 'Post Code'
+    default:
+      return 'Postal Code'
+  }
+})
+
+const handleCountryChange = () => {
+  // Reset the preferred supermarket when country changes
+  preferredSupermarket.value = supermarketOptions.value[0]?.value || ''
+}
 
 const handleRegister = async () => {
   try {
-    const response = await axios.post('/api/users/register', {
+    console.log('Sending registration request with data:', {
       name: name.value,
       email: email.value,
-      password: password.value,
+      country: country.value,
       postcode: postcode.value,
       preferredSupermarket: preferredSupermarket.value,
       useMetric: useMetric.value
-    })
+    });
+
+    const response = await api.post('/users/register', {
+      name: name.value,
+      email: email.value,
+      password: password.value,
+      country: country.value,
+      postcode: postcode.value,
+      preferredSupermarket: preferredSupermarket.value,
+      useMetric: useMetric.value
+    });
     
-    // Store the token in localStorage
-    localStorage.setItem('token', response.data.token)
-    
-    // Redirect to dashboard or home page
-    router.push('/')
-  } catch (error) {
-    console.error('Registration failed:', error)
-    // Handle error (show message to user)
+    console.log('Registration successful:', response.data);
+    localStorage.setItem('token', response.data.token);
+    router.push('/');
+  } catch (err: unknown) {
+    console.error('Registration failed:', err);
+    if (err instanceof Error && 'response' in err) {
+      const axiosError = err as any;
+      console.error('Server response:', axiosError.response?.data);
+      alert(axiosError.response?.data?.error || 'Registration failed. Please try again.');
+    } else {
+      alert('Registration failed. Please try again.');
+    }
   }
 }
 </script> 

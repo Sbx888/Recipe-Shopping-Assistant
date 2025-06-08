@@ -34,7 +34,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import axios from 'axios'
+import api from '../config/api'
 
 const router = useRouter()
 const email = ref('')
@@ -42,19 +42,27 @@ const password = ref('')
 
 const handleLogin = async () => {
   try {
-    const response = await axios.post('/api/users/login', {
+    console.log('Attempting login for:', email.value)
+    const response = await api.post('/users/login', {
       email: email.value,
       password: password.value
     })
     
+    console.log('Login successful:', response.data)
+    
     // Store the token in localStorage
     localStorage.setItem('token', response.data.token)
     
-    // Redirect to dashboard or home page
-    router.push('/')
-  } catch (error) {
-    console.error('Login failed:', error)
-    // Handle error (show message to user)
+    // Force a page reload to update the auth state
+    window.location.href = '/'
+  } catch (err: unknown) {
+    console.error('Login failed:', err)
+    if (err instanceof Error && 'response' in err) {
+      const axiosError = err as any
+      alert(axiosError.response?.data?.error || 'Login failed. Please try again.')
+    } else {
+      alert('Login failed. Please try again.')
+    }
   }
 }
 </script> 

@@ -9,8 +9,14 @@
             </router-link>
           </div>
           <div class="flex items-center">
-            <router-link to="/login" class="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md">Login</router-link>
-            <router-link to="/register" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md ml-4">Register</router-link>
+            <template v-if="isAuthenticated">
+              <router-link to="/recipe" class="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md">Add Recipe</router-link>
+              <button @click="handleLogout" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md ml-4">Logout</button>
+            </template>
+            <template v-else>
+              <router-link to="/login" class="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md">Login</router-link>
+              <router-link to="/register" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md ml-4">Register</router-link>
+            </template>
           </div>
         </div>
       </div>
@@ -22,7 +28,23 @@
 </template>
 
 <script setup lang="ts">
-// Component logic will be added here
+import { ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+
+const router = useRouter();
+const isAuthenticated = ref(false);
+
+onMounted(() => {
+  // Check if user is authenticated
+  const token = localStorage.getItem('token');
+  isAuthenticated.value = !!token;
+});
+
+const handleLogout = () => {
+  localStorage.removeItem('token');
+  isAuthenticated.value = false;
+  router.push('/login');
+};
 </script>
 
 <style>
