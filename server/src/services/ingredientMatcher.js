@@ -106,17 +106,71 @@ export async function recordSubstitution(userId, originalIngredient, substituted
 }
 
 /**
+ * Update brand preference based on user feedback
+ */
+export async function updateBrandPreference(userId, brandData) {
+  try {
+    const { brandName, productCategory, rating } = brandData;
+    
+    const update = {
+      $set: {
+        'brandPreferences.$[elem].rating': rating,
+        'brandPreferences.$[elem].lastUsed': new Date(),
+        'brandPreferences.$[elem].usageCount': { $add: ['$brandPreferences.$[elem].usageCount', 1] }
+      }
+    };
+
+    const arrayFilters = [{
+      'elem.brandName': brandName,
+      'elem.productCategory': productCategory
+    }];
+
+    const result = await Preference.findOneAndUpdate(
+      { userId },
+      update,
+      { 
+        arrayFilters,
+        new: true
+      }
+    );
+
+    if (!result) {
+      // Brand preference doesn't exist yet, create new
+      await Preference.findOneAndUpdate(
+        { userId },
+        {
+          $push: {
+            brandPreferences: {
+              brandName,
+              productCategory,
+              rating,
+              usageCount: 1,
+              lastUsed: new Date()
+            }
+          }
+        },
+        { upsert: true }
+      );
+    }
+  } catch (error) {
+    console.error('Error updating brand preference:', error);
+    throw error;
+  }
+}
+
+/**
  * Get personalized product recommendations based on user history
  */
 export async function getRecommendations(userId, ingredient, storeInventory) {
   try {
     const userPrefs = await Preference.findOne({ userId });
     
-    // Prepare context for AI
+    // Prepare context for AI with brand preferences
     const context = {
       ingredient,
       userHistory: userPrefs?.substitutionHistory || [],
-      preferredBrands: userPrefs?.preferredBrands || [],
+      brandPreferences: userPrefs?.brandPreferences || [],
+      pricePreference: userPrefs?.pricePreference || 'mid-range',
       availableProducts: storeInventory
     };
 
@@ -128,13 +182,15 @@ export async function getRecommendations(userId, ingredient, storeInventory) {
           role: "system",
           content: `You are a shopping assistant AI that recommends specific products.
 Consider:
-1. User's brand preferences
+1. User's brand preferences and ratings
 2. Previous purchase history
-3. Price-quality ratio
+3. Price-quality ratio matching user's price preference
 4. Current availability
 5. Package size appropriateness
+6. Brand preference learning history
 
-Return a JSON array of recommended products, ranked by suitability.`
+Return a JSON array of recommended products, ranked by suitability.
+Include reasoning for each recommendation based on user preferences.`
         },
         {
           role: "user",

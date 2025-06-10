@@ -20,10 +20,16 @@
           </div>
         </div>
 
+        <!-- Error Message -->
+        <div v-if="error" class="text-red-600 text-sm text-center">{{ error }}</div>
+
         <div>
           <button type="submit"
-            class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-            Sign in
+            :disabled="loading"
+            class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+          >
+            <span v-if="loading">Signing in...</span>
+            <span v-else>Sign in</span>
           </button>
         </div>
       </form>
@@ -39,10 +45,15 @@ import api from '../config/api'
 const router = useRouter()
 const email = ref('')
 const password = ref('')
+const loading = ref(false)
+const error = ref('')
 
 const handleLogin = async () => {
   try {
+    loading.value = true
+    error.value = ''
     console.log('Attempting login for:', email.value)
+    
     const response = await api.post('/users/login', {
       email: email.value,
       password: password.value
@@ -53,16 +64,18 @@ const handleLogin = async () => {
     // Store the token in localStorage
     localStorage.setItem('token', response.data.token)
     
-    // Force a page reload to update the auth state
-    window.location.href = '/'
+    // Redirect to dashboard
+    router.push('/dashboard')
   } catch (err: unknown) {
     console.error('Login failed:', err)
     if (err instanceof Error && 'response' in err) {
       const axiosError = err as any
-      alert(axiosError.response?.data?.error || 'Login failed. Please try again.')
+      error.value = axiosError.response?.data?.error || 'Login failed. Please try again.'
     } else {
-      alert('Login failed. Please try again.')
+      error.value = 'Network error. Please check your connection.'
     }
+  } finally {
+    loading.value = false
   }
 }
 </script> 

@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import cors from 'cors';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { createServer } from 'http';
 
 // Get directory path for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -38,11 +39,25 @@ if (missingVars.length > 0) {
 import userRoutes from './routes/users.js';
 import pantryRoutes from './routes/pantry.js';
 import recipeRoutes from './routes/recipes.js';
+import storageRoutes from './routes/storage.js';
+import ingredientRoutes from './routes/ingredients.js';
+import foodCategoryRoutes from './routes/foodCategories.js';
+import shoppingListRoutes from './routes/shoppingList.js';
+import supermarketRoutes from './routes/supermarket.js';
 
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production' 
+    ? process.env.CLIENT_URL 
+    : ['http://localhost:5173', 'http://127.0.0.1:5173'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+  maxAge: 86400 // 24 hours
+}));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -56,6 +71,11 @@ app.use((req, res, next) => {
 app.use('/api/users', userRoutes);
 app.use('/api/pantry', pantryRoutes);
 app.use('/api/recipes', recipeRoutes);
+app.use('/api/storage', storageRoutes);
+app.use('/api/ingredients', ingredientRoutes);
+app.use('/api/food-categories', foodCategoryRoutes);
+app.use('/api/shopping-list', shoppingListRoutes);
+app.use('/api/supermarket', supermarketRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -67,80 +87,31 @@ app.use((err, req, res, next) => {
 });
 
 // Connect to MongoDB
-try {
-  console.log('Attempting to connect to MongoDB...');
-  await mongoose.connect(process.env.MONGODB_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-  });
+console.log('Attempting to connect to MongoDB...');
+mongoose.connect(process.env.MONGODB_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+})
+.then(() => {
   console.log('Connected to MongoDB successfully');
-} catch (err) {
-  console.error('MongoDB connection error:', err);
+})
+.catch((error) => {
+  console.error('MongoDB connection error:', error);
   process.exit(1);
-}
-
-// Function to find an available port
-const findAvailablePort = async (startPort) => {
-  let port = startPort;
-  while (port < startPort + 10) {
-    try {
-      await new Promise((resolve, reject) => {
-        const server = app.listen(port, '0.0.0.0')
-          .once('error', (err) => {
-            server.close();
-            if (err.code === 'EADDRINUSE') {
-              port++;
-              resolve(false);
-            } else {
-              reject(err);
-            }
-          })
-          .once('listening', () => {
-            server.close();
-            resolve(true);
-          });
-      });
-      return port;
-    } catch (err) {
-      console.error(`Error trying port ${port}:`, err);
-      port++;
-    }
-  }
-  throw new Error('No available ports found');
-};
+});
 
 // Start server
+const PORT = process.env.PORT || 3000;
+let server;
+
 const startServer = async () => {
   try {
-    const PORT = process.env.PORT || 3000;
-    const availablePort = await findAvailablePort(PORT);
-    const server = app.listen(availablePort, '0.0.0.0', () => {
-      console.log(`Server is running at http://localhost:${availablePort}`);
+    server = app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server is running at http://localhost:${PORT}`);
       console.log('Server is listening on all network interfaces');
     });
-
-    // Graceful shutdown
-    const shutdown = () => {
-      console.log('Received shutdown signal. Closing server...');
-      server.close(() => {
-        console.log('Server closed. Closing MongoDB connection...');
-        mongoose.connection.close(false, () => {
-          console.log('MongoDB connection closed. Exiting process.');
-          process.exit(0);
-        });
-      });
-
-      // Force exit if graceful shutdown fails
-      setTimeout(() => {
-        console.error('Could not close connections in time, forcefully shutting down');
-        process.exit(1);
-      }, 10000);
-    };
-
-    process.on('SIGTERM', shutdown);
-    process.on('SIGINT', shutdown);
-  } catch (err) {
-    console.error('Failed to start server:', err);
+  } catch (error) {
+    console.error('Error starting server:', error);
     process.exit(1);
   }
 };

@@ -1,10 +1,10 @@
 import express from 'express';
-import auth from '../middleware/auth.js';
+import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
 
 // Get all ingredients
-router.get('/', auth, async (req, res) => {
+router.get('/', authenticateToken, async (req, res) => {
   try {
     // TODO: Implement get all ingredients
     res.json({ ingredients: [] });
@@ -14,7 +14,7 @@ router.get('/', auth, async (req, res) => {
 });
 
 // Add new ingredient
-router.post('/', auth, async (req, res) => {
+router.post('/', authenticateToken, async (req, res) => {
   try {
     const { name, category } = req.body;
     if (!name || !category) {

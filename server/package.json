@@ -18,7 +18,9 @@
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.15.1",
-    "openai": "^4.20.0"
+    "node-fetch": "^3.3.2",
+    "openai": "^4.20.0",
+    "tinyduration": "^3.4.1"
   },
   "devDependencies": {
     "jest": "^29.7.0",

@@ -1,202 +1,153 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
-import OpenAI from 'openai';
-import { parse as parseIngredient } from './ingredientParser.js';
-import { findSubstitutes, getRecommendations } from './ingredientMatcher.js';
-import { findRecipeProducts, calculateShoppingRoute } from './supermarketService.js';
-import Preference from '../models/Preference.js';
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  organization: process.env.OPENAI_ORG_ID
-});
 
 /**
- * Parse recipe from URL with AI-powered ingredient matching
+ * Parse a recipe from a URL
+ * @param {string} url - The recipe URL
+ * @param {number} servings - Number of servings
+ * @param {string} userId - Optional user ID for personalization
+ * @param {string} location - Location for store-specific data
+ * @returns {Promise<Object>} Parsed recipe
  */
-export async function parseRecipeFromUrl(url, servings = 4, userId, location) {
+export async function parseRecipeFromUrl(url, servings = 4, userId = null, location = 'default') {
+  const startTime = Date.now();
+  console.log('🟡 [Recipe Parser] Starting recipe parse:', { url, servings, location });
+
   try {
-    console.log('Starting recipe parsing process:', { url, servings, location });
-    
+    // Validate URL
     if (!url || !url.startsWith('http')) {
       throw new Error('Invalid URL format. URL must start with http:// or https://');
     }
 
-    // Validate OpenAI configuration
-    if (!process.env.OPENAI_API_KEY) {
-      throw new Error('OpenAI API key is not configured');
-    }
-    if (!process.env.OPENAI_ORG_ID) {
-      throw new Error('OpenAI Organization ID is not configured');
-    }
-
-    console.log('OpenAI Configuration:', {
-      apiKeySet: !!process.env.OPENAI_API_KEY,
-      apiKeyLength: process.env.OPENAI_API_KEY?.length,
-      orgIdSet: !!process.env.OPENAI_ORG_ID,
-      model: "gpt-4-1106-preview"
+    // Fetch recipe page
+    console.log('🟡 [Recipe Parser] Fetching recipe URL...');
+    const response = await axios.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Referer': 'https://www.google.com/'
+      },
+      timeout: 30000, // Increase timeout to 30 seconds
+      maxRedirects: 5,
+      validateStatus: function (status) {
+        return status >= 200 && status < 300; // Only accept success status codes
+      }
     });
 
-    // Fetch user preferences
-    const preferences = await Preference.findOne({ userId }).populate('userId');
-    if (!preferences) {
-      throw new Error('User preferences not found');
+    if (!response.data) {
+      throw new Error('No content received from URL');
     }
 
-    // Fetch recipe page
-    const response = await axios.get(url);
+    console.log('✅ [Recipe Parser] Successfully fetched URL');
+
+    // Parse HTML
+    console.log('🟡 [Recipe Parser] Parsing HTML content...');
     const $ = cheerio.load(response.data);
 
-    // Extract basic recipe information
-    const title = $('h1').first().text().trim();
-    const description = $('meta[name="description"]').attr('content');
-    const imageUrl = $('meta[property="og:image"]').attr('content');
+    // Extract recipe data
+    console.log('🟡 [Recipe Parser] Extracting recipe data...');
+    
+    // Try multiple selectors for title
+    const title = $('h1').first().text().trim() 
+      || $('title').text().trim()
+      || $('.recipe-title').text().trim()
+      || $('.recipe-name').text().trim();
 
-    // Use OpenAI to extract recipe details
-    const content = $('body').text();
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4-1106-preview',
-      messages: [
-        {
-          role: 'system',
-          content: `You are a recipe parsing expert. Extract the following from the recipe:
-            1. List of ingredients with quantities
-            2. Step by step instructions
-            3. Cooking time
-            4. Difficulty level
-            5. Cuisine type
-            6. Dietary tags (vegetarian, vegan, etc.)
-            7. Equipment needed
-            
-            Format the response as JSON with the following structure:
-            {
-              "ingredients": [{"item": "ingredient", "quantity": "amount", "unit": "measurement"}],
-              "instructions": ["step 1", "step 2", ...],
-              "cookingTime": {"prep": "minutes", "cook": "minutes"},
-              "difficulty": "easy/medium/hard",
-              "cuisine": "type",
-              "dietaryTags": ["tag1", "tag2"],
-              "equipment": ["item1", "item2"]
-            }`
-        },
-        {
-          role: 'user',
-          content: content
-        }
-      ],
-      temperature: 0.7,
-      max_tokens: 1500
-    });
+    const ingredients = new Set();
+    const instructions = new Set();
 
-    const recipeData = JSON.parse(completion.choices[0].message.content);
-
-    // Process ingredients with user preferences
-    const processedIngredients = await Promise.all(recipeData.ingredients.map(async (ingredient) => {
-      const parsed = parseIngredient(`${ingredient.quantity} ${ingredient.unit} ${ingredient.item}`);
-      
-      // Check for dietary restrictions and allergies
-      const isAllergic = preferences.allergies.some(allergy => 
-        ingredient.item.toLowerCase().includes(allergy.toLowerCase())
-      );
-
-      const violatesDiet = preferences.dietaryPreferences.some(diet => {
-        switch(diet) {
-          case 'vegetarian':
-            return ingredient.item.toLowerCase().match(/meat|beef|chicken|pork|fish/);
-          case 'vegan':
-            return ingredient.item.toLowerCase().match(/meat|beef|chicken|pork|fish|egg|milk|dairy|honey/);
-          case 'gluten-free':
-            return ingredient.item.toLowerCase().match(/wheat|flour|bread|pasta/);
-          // Add more dietary checks as needed
-          default:
-            return false;
+    // Try to find ingredients with multiple selectors
+    console.log('🟡 [Recipe Parser] Looking for ingredients...');
+    [
+      '.recipe-ingredients li',
+      '.ingredients li',
+      '.ingredient-list li',
+      '[itemprop="recipeIngredient"]',
+      '.ingredients-list li',
+      'li' // fallback to all list items
+    ].forEach(selector => {
+      $(selector).each((i, el) => {
+        const text = $(el).text().trim();
+        if (text && text.length > 5 && text.length < 200) {
+          ingredients.add(text);
         }
       });
-
-      // Get ingredient substitutions if needed
-      let substitutes = [];
-      if (isAllergic || violatesDiet) {
-        const substitutionPrompt = `Suggest 3 substitutes for ${ingredient.item} that are:
-          ${preferences.allergies.length > 0 ? `- Free from these allergens: ${preferences.allergies.join(', ')}` : ''}
-          ${preferences.dietaryPreferences.length > 0 ? `- Suitable for: ${preferences.dietaryPreferences.join(', ')}` : ''}
-          Format as JSON array: ["substitute1", "substitute2", "substitute3"]`;
-
-        const substitutionCompletion = await openai.chat.completions.create({
-          model: 'gpt-4-1106-preview',
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a culinary expert specializing in ingredient substitutions.'
-            },
-            {
-              role: 'user',
-              content: substitutionPrompt
-            }
-          ],
-          temperature: 0.7,
-          max_tokens: 200
-        });
-
-        substitutes = JSON.parse(substitutionCompletion.choices[0].message.content);
-      }
-
-      // Adjust quantity for requested servings
-      const servingRatio = servings / 4; // Assuming original recipe is for 4 servings
-      const adjustedQuantity = parsed.quantity * servingRatio;
-
-      return {
-        ...parsed,
-        quantity: adjustedQuantity,
-        isAllergic,
-        violatesDiet,
-        substitutes,
-        original: ingredient
-      };
-    }));
-
-    // Find best matching products and calculate shopping route
-    const productMatches = await findRecipeProducts(recipeData, location);
-    const shoppingRoute = await calculateShoppingRoute(
-      productMatches.flatMap(match => match.matches),
-      location
-    );
-
-    // Return complete recipe data
-    const enhancedRecipe = {
-      url,
-      title,
-      description,
-      imageUrl,
-      servings,
-      ingredients: processedIngredients,
-      instructions: recipeData.instructions,
-      cookingTime: recipeData.cookingTime,
-      difficulty: recipeData.difficulty,
-      cuisine: recipeData.cuisine,
-      dietaryTags: recipeData.dietaryTags,
-      equipment: recipeData.equipment,
-      userPreferences: {
-        allergies: preferences.allergies,
-        dietaryPreferences: preferences.dietaryPreferences
-      },
-      shopping: {
-        productMatches,
-        shoppingRoute
-      }
-    };
-
-    console.log('Successfully enhanced recipe:', {
-      title: enhancedRecipe.title,
-      ingredients: enhancedRecipe.ingredients.length,
-      instructions: enhancedRecipe.instructions.length,
-      servings: enhancedRecipe.servings,
-      hasShoppingPlan: !!enhancedRecipe.shopping
     });
 
-    return enhancedRecipe;
+    // Try to find instructions with multiple selectors
+    console.log('🟡 [Recipe Parser] Looking for instructions...');
+    [
+      '.recipe-instructions li',
+      '.instructions li',
+      '.method li',
+      '[itemprop="recipeInstructions"]',
+      '.recipe-method li',
+      'ol li' // fallback to ordered list items
+    ].forEach(selector => {
+      $(selector).each((i, el) => {
+        const text = $(el).text().trim();
+        if (text && text.length > 10) {
+          instructions.add(text);
+        }
+      });
+    });
+
+    // Validate extracted data
+    if (!title) {
+      console.warn('🟡 [Recipe Parser] Could not find recipe title, using URL as fallback');
+      const urlTitle = url.split('/').pop()?.replace(/-/g, ' ') || 'Untitled Recipe';
+      title = urlTitle.charAt(0).toUpperCase() + urlTitle.slice(1);
+    }
+
+    if (ingredients.size === 0) {
+      throw new Error('Could not find recipe ingredients. The website might be blocking our access or using a different structure.');
+    }
+
+    if (instructions.size === 0) {
+      throw new Error('Could not find recipe instructions. The website might be blocking our access or using a different structure.');
+    }
+
+    // Create recipe object
+    const recipe = {
+      title,
+      url,
+      ingredients: Array.from(ingredients),
+      instructions: Array.from(instructions),
+      servings,
+      userId,
+      importDate: new Date(),
+      parseTime: Date.now() - startTime
+    };
+
+    console.log('✅ [Recipe Parser] Recipe parsing completed successfully:', {
+      title: recipe.title,
+      ingredientsCount: recipe.ingredients.length,
+      instructionsCount: recipe.instructions.length
+    });
+    
+    return recipe;
 
   } catch (error) {
-    console.error('Error parsing recipe:', error);
-    throw new Error(`Failed to parse recipe: ${error.message}`);
+    console.error('🔴 [Recipe Parser] Error:', {
+      message: error.message,
+      code: error.code,
+      phase: error.response ? 'network' : 'parsing',
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      duration: Date.now() - startTime,
+      url
+    });
+    
+    // Enhance error message for user
+    if (error.code === 'ECONNREFUSED') {
+      throw new Error('Could not connect to the recipe website. The site might be down or blocking our access.');
+    } else if (error.response?.status === 404) {
+      throw new Error('Recipe page not found. Please check if the URL is correct.');
+    } else if (error.response?.status === 403) {
+      throw new Error('Access to the recipe website was denied. The site might be blocking automated access.');
+    } else {
+      throw new Error(`Failed to import recipe: ${error.message}`);
+    }
   }
 } 

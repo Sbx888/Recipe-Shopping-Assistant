@@ -1,9 +1,7 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 
-// Basic authentication middleware
-// TODO: Implement proper authentication later
-const auth = async (req, res, next) => {
+export const authenticateToken = async (req, res, next) => {
   try {
     const token = req.header('Authorization')?.replace('Bearer ', '');
     
@@ -18,6 +16,7 @@ const auth = async (req, res, next) => {
       return res.status(401).json({ error: 'User not found' });
     }
 
+    req.token = token;
     req.user = user;
     next();
   } catch (error) {
@@ -25,8 +24,6 @@ const auth = async (req, res, next) => {
     res.status(401).json({ error: 'Please authenticate' });
   }
 };
-
-export default auth;
 
 export const isAdmin = async (req, res, next) => {
   try {
@@ -37,4 +34,4 @@ export const isAdmin = async (req, res, next) => {
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
   }
-}; 
+};

@@ -1,135 +1,45 @@
 import mongoose from 'mongoose';
 
-const SubstitutionSchema = new mongoose.Schema({
-  originalIngredient: {
-    type: String,
-    required: true
-  },
-  substitutedWith: {
-    type: String,
-    required: true
-  },
-  rating: {
-    type: Number,
-    required: true,
-    min: 1,
-    max: 5
-  },
-  timestamp: {
-    type: Date,
-    default: Date.now
-  }
+const brandPreferenceSchema = new mongoose.Schema({
+  brandName: { type: String, required: true },
+  productCategory: { type: String, required: true },
+  rating: { type: Number, min: 1, max: 5 },
+  usageCount: { type: Number, default: 0 },
+  lastUsed: { type: Date },
+  notes: String
 });
 
-const PreferenceSchema = new mongoose.Schema({
+const preferenceSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true,
-    unique: true
+    required: true
   },
-  dietaryPreferences: [{
-    type: String,
-    enum: [
-      'vegetarian',
-      'vegan',
-      'pescatarian',
-      'gluten-free',
-      'dairy-free',
-      'keto',
-      'paleo',
-      'halal',
-      'kosher',
-      'low-carb',
-      'low-fat',
-      'low-sodium'
-    ]
+  filteredIngredients: [{
+    ingredient: { type: String, required: true },
+    reason: { type: String, enum: ['allergy', 'dietary', 'dislike', 'other'] },
+    severity: { type: String, enum: ['must_avoid', 'prefer_avoid'] },
+    notes: String,
+    dateAdded: { type: Date, default: Date.now }
   }],
+  dietaryPreferences: [String],
   allergies: [String],
-  preferredBrands: [String],
   avoidedIngredients: [String],
-  substitutions: [SubstitutionSchema],
-  shoppingPreferences: {
-    preferredStores: [String],
-    maxPrice: Number,
-    preferredBrands: [String],
-    organicPreference: Boolean,
-    localPreference: Boolean
-  },
-  lastLocation: {
-    type: {
-      type: String,
-      enum: ['Point'],
-      default: 'Point'
-    },
-    coordinates: {
-      type: [Number],
-      default: [0, 0]
-    },
-    address: String,
-    lastUpdated: {
-      type: Date,
-      default: Date.now
-    }
+  substitutionHistory: [{
+    originalIngredient: String,
+    substitutedWith: String,
+    rating: Number,
+    timestamp: Date
+  }],
+  brandPreferences: [brandPreferenceSchema],
+  preferredStores: [String],
+  pricePreference: {
+    type: String,
+    enum: ['budget', 'mid-range', 'premium'],
+    default: 'mid-range'
   }
-}, {
-  timestamps: true
 });
 
-// Create indexes
-PreferenceSchema.index({ 'lastLocation.coordinates': '2dsphere' });
-
-// Add methods
-PreferenceSchema.methods.updateLocation = async function(latitude, longitude, address) {
-  this.lastLocation = {
-    type: 'Point',
-    coordinates: [longitude, latitude],
-    address,
-    lastUpdated: new Date()
-  };
-  await this.save();
-};
-
-PreferenceSchema.methods.addSubstitution = async function(originalIngredient, substitutedWith, rating) {
-  this.substitutions.push({
-    originalIngredient,
-    substitutedWith,
-    rating,
-    timestamp: new Date()
-  });
-  await this.save();
-};
-
-PreferenceSchema.methods.getRecentSubstitutions = function(limit = 10) {
-  return this.substitutions
-    .sort((a, b) => b.timestamp - a.timestamp)
-    .slice(0, limit);
-};
-
-PreferenceSchema.methods.getTopRatedSubstitutions = function() {
-  const substitutions = {};
-  
-  this.substitutions.forEach(sub => {
-    const key = `${sub.originalIngredient}:${sub.substitutedWith}`;
-    if (!substitutions[key]) {
-      substitutions[key] = {
-        originalIngredient: sub.originalIngredient,
-        substitutedWith: sub.substitutedWith,
-        ratings: []
-      };
-    }
-    substitutions[key].ratings.push(sub.rating);
-  });
-
-  return Object.values(substitutions)
-    .map(sub => ({
-      ...sub,
-      averageRating: sub.ratings.reduce((a, b) => a + b, 0) / sub.ratings.length
-    }))
-    .sort((a, b) => b.averageRating - a.averageRating);
-};
-
-// Check if model exists before compiling
-const Preference = mongoose.models.Preference || mongoose.model('Preference', PreferenceSchema);
-
+const Preference = mongoose.model('Preference', preferenceSchema);
+export { Preference };
 export default Preference; 

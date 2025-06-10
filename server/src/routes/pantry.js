@@ -1,11 +1,11 @@
 import express from 'express';
-import auth from '../middleware/auth.js';
+import { authenticateToken } from '../middleware/auth.js';
 import Pantry from '../models/Pantry.js';
 
 const router = express.Router();
 
 // Get user's pantry
-router.get('/', auth, async (req, res) => {
+router.get('/', authenticateToken, async (req, res) => {
   try {
     const pantry = await Pantry.findOne({ userId: req.user._id });
     if (!pantry) {
@@ -18,7 +18,7 @@ router.get('/', auth, async (req, res) => {
 });
 
 // Add item to pantry
-router.post('/items', auth, async (req, res) => {
+router.post('/items', authenticateToken, async (req, res) => {
   try {
     const { name, quantity, unit, category, expirationDate } = req.body;
     
@@ -51,7 +51,7 @@ router.post('/items', auth, async (req, res) => {
 });
 
 // Update pantry item
-router.put('/items/:id', auth, async (req, res) => {
+router.put('/items/:id', authenticateToken, async (req, res) => {
   try {
     const updates = req.body;
     const pantry = await Pantry.findOneAndUpdate(
@@ -71,7 +71,7 @@ router.put('/items/:id', auth, async (req, res) => {
 });
 
 // Delete pantry item
-router.delete('/items/:id', auth, async (req, res) => {
+router.delete('/items/:id', authenticateToken, async (req, res) => {
   try {
     const pantry = await Pantry.findOneAndDelete({
       userId: req.user._id,
